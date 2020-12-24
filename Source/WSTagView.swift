@@ -11,7 +11,12 @@ import UIKit
 open class WSTagView: UIView, UITextInputTraits {
 
     fileprivate let textLabel = UILabel()
-
+    
+    private let removeButton = UIButton()
+    private let removeButtonSize = CGSize(width: 16, height: 16)
+    private let removeButtonLeftMargin: CGFloat = 8
+    private let removeButtonRightMargin: CGFloat = 4
+    
     open var displayText: String = "" {
         didSet {
             updateLabelText()
@@ -72,6 +77,13 @@ open class WSTagView: UIView, UITextInputTraits {
     open var selectedTextColor: UIColor? {
         didSet { updateContent(animated: false) }
     }
+    
+    open var showsRemoveButton: Bool = false {
+        didSet {
+            removeButton.isEnabled = showsRemoveButton
+            setNeedsDisplay()
+        }
+    }
 
     internal var onDidRequestDelete: ((_ tagView: WSTagView, _ replacementText: String?) -> Void)?
     internal var onDidRequestSelection: ((_ tagView: WSTagView) -> Void)?
@@ -88,7 +100,26 @@ open class WSTagView: UIView, UITextInputTraits {
             updateContent(animated: true)
         }
     }
+    
+    lazy var removeImage: UIImage = {
+        UIGraphicsBeginImageContext(CGSize(width: 9, height: 9))
+        let context = UIGraphicsGetCurrentContext()!
 
+        context.setLineWidth(1.0)
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.5).cgColor)
+        context.move(to: CGPoint(x: 0, y: 0))
+        context.addLine(to: CGPoint(x: 9, y: 9))
+        context.move(to: CGPoint(x: 0, y: 9))
+        context.addLine(to: CGPoint(x: 9, y: 0))
+        context.strokePath()
+        
+
+        let myImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return myImage!
+    }()
+    
     // MARK: - UITextInputTraits
 
     public var autocapitalizationType: UITextAutocapitalizationType = .none
@@ -117,10 +148,22 @@ open class WSTagView: UIView, UITextInputTraits {
         textLabel.textColor = .white
         textLabel.backgroundColor = .clear
         addSubview(textLabel)
-
+        
+        removeButton.isHidden = showsRemoveButton
+        removeButton.setImage(removeImage, for: .normal)
+        removeButton.addTarget(self, action: #selector(remove), for: .touchUpInside)
+        addSubview(removeButton)
+        
         self.displayText = tag.text
         updateLabelText()
 
+        layer.shadowColor = UIColor(red: 118.0/255, green: 109.0/255, blue: 229.0/255, alpha: 1).cgColor
+        layer.shadowOpacity = 0.2
+        layer.shadowOffset = CGSize(width: 0, height: 14)
+        layer.shadowRadius = 20 / 2.0
+        layer.shadowPath = nil
+        layer.masksToBounds = false
+        
         let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleTapGestureRecognizer))
         addGestureRecognizer(tapRecognizer)
         setNeedsLayout()
@@ -166,18 +209,23 @@ open class WSTagView: UIView, UITextInputTraits {
 
     open override var intrinsicContentSize: CGSize {
         let labelIntrinsicSize = textLabel.intrinsicContentSize
-        return CGSize(width: labelIntrinsicSize.width + layoutMargins.left + layoutMargins.right,
-                      height: labelIntrinsicSize.height + layoutMargins.top + layoutMargins.bottom)
+        var removeButtonSpace: CGFloat = 0
+        if showsRemoveButton {
+            removeButtonSpace = removeButtonLeftMargin + removeButtonRightMargin + removeButtonSize.width
+        }
+        return CGSize(width: labelIntrinsicSize.width + layoutMargins.left + layoutMargins.right + removeButtonSpace,
+                      height: max(labelIntrinsicSize.height, removeButtonSize.height) + layoutMargins.top + layoutMargins.bottom)
     }
 
     open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let layoutMarginsHorizontal = layoutMargins.left + layoutMargins.right
         let layoutMarginsVertical = layoutMargins.top + layoutMargins.bottom
-        let fittingSize = CGSize(width: size.width - layoutMarginsHorizontal,
+        let removeButtonSpace = removeButtonLeftMargin + removeButtonRightMargin + removeButtonSize.width
+        let fittingSize = CGSize(width: size.width - layoutMarginsHorizontal - (showsRemoveButton ? removeButtonSpace : 0),
                                  height: size.height - layoutMarginsVertical)
         let labelSize = textLabel.sizeThatFits(fittingSize)
-        return CGSize(width: labelSize.width + layoutMarginsHorizontal,
-                      height: labelSize.height + layoutMarginsVertical)
+        return CGSize(width: labelSize.width + layoutMarginsHorizontal + (showsRemoveButton ? removeButtonSpace : 0),
+                      height: max(labelSize.height, removeButtonSize.height) + layoutMarginsVertical)
     }
 
     open func sizeToFit(_ size: CGSize) -> CGSize {
@@ -200,10 +248,20 @@ open class WSTagView: UIView, UITextInputTraits {
     // MARK: - Laying out
     open override func layoutSubviews() {
         super.layoutSubviews()
-        textLabel.frame = bounds.inset(by: layoutMargins)
+        let removeButtonSpace = removeButtonLeftMargin + removeButtonSize.width + removeButtonRightMargin
+        textLabel.frame = bounds.inset(by: UIEdgeInsets(top: layoutMargins.top,
+                                                        left: layoutMargins.left,
+                                                        bottom: layoutMargins.bottom,
+                                                        right: (showsRemoveButton ? removeButtonSpace : layoutMargins.right)))
+        removeButton.frame = CGRect(x: bounds.width - removeButtonSpace,
+                                    y: 0,
+                                    width: removeButtonSize.width + removeButtonRightMargin,
+                                    height: max(removeButtonSize.height, bounds.height))
+        
         if frame.width == 0 || frame.height == 0 {
             frame.size = self.intrinsicContentSize
         }
+        layer.cornerRadius = bounds.height/2
     }
 
     // MARK: - First Responder (needed to capture keyboard)
@@ -230,7 +288,10 @@ open class WSTagView: UIView, UITextInputTraits {
         }
         onDidRequestSelection?(self)
     }
-
+    
+    @objc func remove(_ sender: UIButton) {
+        onDidRequestDelete?(self, nil)
+    }
 }
 
 extension WSTagView: UIKeyInput {
@@ -246,5 +307,4 @@ extension WSTagView: UIKeyInput {
     public func deleteBackward() {
         onDidRequestDelete?(self, nil)
     }
-
 }

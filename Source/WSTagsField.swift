@@ -146,6 +146,12 @@ open class WSTagsField: UIScrollView {
             updatePlaceholderTextVisibility()
         }
     }
+    
+    @IBInspectable open var attributedPlaceholder: NSAttributedString? = nil {
+        didSet {
+            updatePlaceholderTextVisibility()
+        }
+    }
 
     @IBInspectable open var placeholderAlwaysVisible: Bool = false {
         didSet {
@@ -174,6 +180,14 @@ open class WSTagsField: UIScrollView {
             unselectAllTagViewsAnimated()
             textField.isEnabled = !readOnly
             repositionViews()
+        }
+    }
+    
+    open var showsRemoveButton: Bool = false {
+        didSet {
+            tagViews.forEach {
+                $0.showsRemoveButton = self.showsRemoveButton
+            }
         }
     }
 
@@ -242,6 +256,11 @@ open class WSTagsField: UIScrollView {
      * or nil if the text shouldn't be accepted.
      */
     open var onVerifyTag: ((WSTagsField, _ text: String) -> Bool)?
+    
+    /**
+     * Return a new string right before tag is added
+     */
+    open var willAddTag: ((WSTag) -> String)?
 
     /**
      * Called when the view has updated its own height. If you are
@@ -398,6 +417,7 @@ open class WSTagsField: UIScrollView {
         tagView.borderColor = self.borderColor
         tagView.keyboardAppearance = self.keyboardAppearance
         tagView.layoutMargins = self.layoutMargins
+        tagView.showsRemoveButton = showsRemoveButton
 
         tagView.onDidRequestSelection = { [weak self] tagView in
             self?.selectTagView(tagView, animated: true)
@@ -471,8 +491,13 @@ open class WSTagsField: UIScrollView {
         let text = self.textField.text?.trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
         if text.isEmpty == false && (onVerifyTag?(self, text) ?? true) {
             let tag = WSTag(text)
-            addTag(tag)
-
+            if let newText = willAddTag {
+                let text = newText(tag)
+                addTag(WSTag(text))
+            } else {
+                addTag(tag)
+            }
+            
             self.textField.text = ""
             onTextFieldDidChange(self.textField)
 
@@ -705,7 +730,7 @@ extension WSTagsField {
 
         if textField.isEnabled {
             var textFieldRect = CGRect.zero
-            textFieldRect.size.height = Constants.STANDARD_ROW_HEIGHT
+            textFieldRect.size.height = max(Constants.STANDARD_ROW_HEIGHT, textField.attributedPlaceholder?.boundingRect(with: CGSize(width: availableWidthForTextField, height: .greatestFiniteMagnitude), options: [], context: nil).height ?? 0)
 
             if availableWidthForTextField < Constants.MINIMUM_TEXTFIELD_WIDTH {
                 // If in the future we add more UI elements below the tags,
@@ -772,10 +797,10 @@ extension WSTagsField {
     }
 
     fileprivate func updatePlaceholderTextVisibility() {
-        textField.attributedPlaceholder = (placeholderAlwaysVisible || tags.count == 0) ? attributedPlaceholder() : nil
+        textField.attributedPlaceholder = (placeholderAlwaysVisible || tags.count == 0) ? (attributedPlaceholder ?? placeholderAttributedString()) : nil
     }
 
-    private func attributedPlaceholder() -> NSAttributedString {
+    private func placeholderAttributedString() -> NSAttributedString {
         var attributes: [NSAttributedString.Key: Any]?
         if let placeholderColor = placeholderColor {
             attributes = [NSAttributedString.Key.foregroundColor: placeholderColor]
@@ -790,7 +815,7 @@ extension WSTagsField {
         guard self.numberOfLines > 0 else {
             return CGFloat.infinity
         }
-        return contentInset.top + contentInset.bottom + Constants.STANDARD_ROW_HEIGHT * CGFloat(numberOfLines) + spaceBetweenLines * CGFloat(numberOfLines - 1)
+        return contentInset.top + contentInset.bottom + Constants.STANDARD_ROW_HEIGHT * CGFloat(numberOfLines) + spaceBetweenLines * CGFloat(numberOfLines)
     }
 
 }
