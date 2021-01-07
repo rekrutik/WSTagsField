@@ -509,6 +509,7 @@ open class WSTagsField: UIScrollView {
     // MARK: - Actions
 
     @objc open func onTextFieldDidChange(_ sender: AnyObject) {
+        repositionViews()
         onDidChangeText?(self, textField.text)
     }
 
@@ -730,9 +731,11 @@ extension WSTagsField {
 
         if textField.isEnabled {
             var textFieldRect = CGRect.zero
-            textFieldRect.size.height = max(Constants.STANDARD_ROW_HEIGHT, textField.attributedPlaceholder?.boundingRect(with: CGSize(width: availableWidthForTextField, height: .greatestFiniteMagnitude), options: [], context: nil).height ?? 0)
+            let placeholderSize = textField.attributedPlaceholder?.boundingRect(with: CGSize(width: availableWidthForTextField, height: .greatestFiniteMagnitude), options: [], context: nil)
+            let textSize = textField.attributedText?.size() ?? .zero
+            textFieldRect.size.height = max(Constants.STANDARD_ROW_HEIGHT, placeholderSize?.height ?? 0)
 
-            if availableWidthForTextField < Constants.MINIMUM_TEXTFIELD_WIDTH {
+            if availableWidthForTextField < Constants.MINIMUM_TEXTFIELD_WIDTH || (tagViews.count > 0 && availableWidthForTextField < textSize.width) {
                 // If in the future we add more UI elements below the tags,
                 // isOnFirstLine will be useful, and this calculation is important.
                 // So leaving it set here, and marking the warning to ignore it
