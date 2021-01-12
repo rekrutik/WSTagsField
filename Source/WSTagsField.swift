@@ -427,7 +427,7 @@ open class WSTagsField: UIScrollView {
             // First, refocus the text field
             self?.textField.becomeFirstResponder()
             if (replacementText?.isEmpty ?? false) == false {
-                self?.textField.text = replacementText
+                self?.textField.text = (self?.textFieldPrefix ?? "") + (replacementText ?? "")
             }
             // Then remove the view from our data
             if let index = self?.tagViews.firstIndex(of: tagView) {
@@ -440,14 +440,14 @@ open class WSTagsField: UIScrollView {
                 self?.selectNextTag()
             } else {
                 self?.textField.becomeFirstResponder()
-                self?.textField.text = text
+                self?.textField.text = (self?.textFieldPrefix ?? "") + text
             }
         }
 
         self.tagViews.append(tagView)
         addSubview(tagView)
 
-        self.textField.text = ""
+        self.textField.text = textFieldPrefix
         onDidAddTag?(self, tag)
 
         // Clearing text programmatically doesn't call this automatically
@@ -455,6 +455,14 @@ open class WSTagsField: UIScrollView {
 
         updatePlaceholderTextVisibility()
         repositionViews()
+    }
+    
+    public var textFieldPrefix: String = "" {
+        didSet {
+            if (trim(self.textField.text) ?? "").isEmpty {
+                self.textField.text = textFieldPrefix
+            }
+        }
     }
 
     open func removeTag(_ tag: String) {
@@ -488,7 +496,7 @@ open class WSTagsField: UIScrollView {
 
     @discardableResult
     open func tokenizeTextFieldText() -> WSTag? {
-        let text = self.textField.text?.trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
+        let text = trim(self.textField.text) ?? ""
         if text.isEmpty == false && (onVerifyTag?(self, text) ?? true) {
             let tag = WSTag(text)
             if let newText = willAddTag {
@@ -498,12 +506,25 @@ open class WSTagsField: UIScrollView {
                 addTag(tag)
             }
             
-            self.textField.text = ""
+            self.textField.text = textFieldPrefix
             onTextFieldDidChange(self.textField)
 
             return tag
         }
         return nil
+    }
+    
+    func trimPrefix(_ string: String?) -> String? {
+        guard let string = string else { return nil }
+        if string.commonPrefix(with: textFieldPrefix) == textFieldPrefix {
+            return String(string.suffix(from: string.index(string.startIndex, offsetBy: textFieldPrefix.count)))
+        }
+        return string
+    }
+    
+    func trim(_ string: String?) -> String? {
+        guard let string = string else { return nil }
+        return trimPrefix(string.trimmingCharacters(in: CharacterSet.whitespaces))?.trimmingCharacters(in: CharacterSet.whitespaces)
     }
 
     // MARK: - Actions
@@ -617,7 +638,7 @@ extension WSTagsField {
 
     public var text: String? {
         get { return textField.text }
-        set { textField.text = newValue }
+        set { textField.text = textFieldPrefix + (newValue ?? "") }
     }
 
     @available(*, deprecated, message: "Use 'inputFieldAccessoryView' instead")
@@ -631,7 +652,7 @@ extension WSTagsField {
     }
 
     var isTextFieldEmpty: Bool {
-        return textField.text?.isEmpty ?? true
+        return trimPrefix(textField.text)?.isEmpty ?? true
     }
 
 }
@@ -670,9 +691,13 @@ extension WSTagsField {
                 return
             }
 
-            if self?.isTextFieldEmpty ?? true, let tagView = self?.tagViews.last {
-                self?.selectTagView(tagView, animated: true)
-                self?.textField.resignFirstResponder()
+            if self?.isTextFieldEmpty ?? true {
+                if let tagView = self?.tagViews.last {
+                    self?.selectTagView(tagView, animated: true)
+                    self?.textField.resignFirstResponder()
+                } else {
+                    self?.textField.insertText(self?.textFieldPrefix ?? "")
+                }
             }
         }
 
@@ -800,7 +825,7 @@ extension WSTagsField {
     }
 
     fileprivate func updatePlaceholderTextVisibility() {
-        textField.attributedPlaceholder = (placeholderAlwaysVisible || tags.count == 0) ? (attributedPlaceholder ?? placeholderAttributedString()) : nil
+        //textField.attributedPlaceholder = (placeholderAlwaysVisible || tags.count == 0) ? (attributedPlaceholder ?? placeholderAttributedString()) : nil
     }
 
     private func placeholderAttributedString() -> NSAttributedString {
