@@ -522,7 +522,7 @@ open class WSTagsField: UIScrollView {
         return string
     }
     
-    func trim(_ string: String?) -> String? {
+    public func trim(_ string: String?) -> String? {
         guard let string = string else { return nil }
         return trimPrefix(string.trimmingCharacters(in: CharacterSet.whitespaces))?.trimmingCharacters(in: CharacterSet.whitespaces)
     }
